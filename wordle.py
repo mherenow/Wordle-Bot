@@ -1,11 +1,55 @@
 import tkinter as tk
 from tkinter import messagebox
+import random
 
-class Wordle:
+class WordleGame:
+    def __init__(self):
+        with open("words.txt") as f:
+            self.valid_words = set(word.strip().upper() for word in f.readlines())
+        
+        self.target_word = self.choose_random_word()
+        self.num_guesses = 0
+        print(self.target_word)
+    
+    def choose_random_word(self):
+        return random.choice(list(self.valid_words))
+    
+    def check_guess(self, guess):
+        guess = guess.upper()
+        if guess not in self.valid_words:
+            return None
+        
+        self.num_guesses += 1
+
+        result = []
+        target_letters = list(self.target_word)
+
+        #Check for correct letters(Green)
+        for i, (guess_letter, target_letter) in enumerate(zip(guess, self.target_word)):
+            if guess_letter == target_letter:
+                result.append(("correct", guess_letter))
+                target_letters[i] = None
+            else:
+                result.append((None, guess_letter))
+        
+        #Check for present letters(Yellow)
+        for i, (status, guess_letter) in enumerate(result):
+            if status is None:
+                if guess_letter in target_letters:
+                    result[i] = ("present", guess_letter)
+                    target_letters[target_letters.index(guess_letter)] = None
+                else:
+                    result[i] = ("absent", guess_letter)
+        
+        return result
+
+class WordleUI:
     def __init__(self, root):
         self.root = root
         self.root.title('Wordle')
         self.root.configure(bg='#121213')
+
+        self.game = WordleGame()
 
         #Constants
         self.WORD_LENGTH = 5
@@ -13,6 +57,7 @@ class Wordle:
         self.current_row = 0
         self.current_col = 0
         self.current_guess = []
+        self.game_over = False
 
         #Colors
         self.CORRECT = '#538D4E'
@@ -50,6 +95,17 @@ class Wordle:
         
         #Keyboard Frame
         self.create_keyboard()
+
+        #New Game Button
+        self.new_game_btn = tk.Button(
+            self.root,
+            text="New Game",
+            command=self.new_game,
+            font=("Arial", 13),
+            bg="#818384",
+            fg="white"
+        )
+        self.new_game_btn.pack(pady=20)
 
         #Key Bindings
         self.root.bind("<Key>", self.key_press)
@@ -97,15 +153,48 @@ class Wordle:
             self.current_col += 1
         
     def submit_guess(self, event):
+        if self.game_over:
+            return
+
         if len(self.current_guess) == self.WORD_LENGTH:
-            self.simulate_feedback()
+            guess = ''.join(self.current_guess)
+            result = self.game.check_guess(guess)
 
-            self.current_row += 1
-            self.current_col = 0
-            self.current_guess = []
+            if result is None:
+                messagebox.showerror("Invalid Guess", "Please enter a valid word.")
+                return
 
-            if self.current_row >= self.MAX_ATTEMPTS:
-                messagebox.showinfo("Game Over", "You have run out of attempts!")
+            self.update_display(result)
+
+            if all(status == 'correct' for status, _ in result):
+                messagebox.showinfo("Congratulations!", 
+                    f"You won in {self.game.num_guesses} {'guess' if self.game.num_guesses == 1 else 'guesses'}!\n")
+                self.game_over = True
+            elif self.current_row >= self.MAX_ATTEMPTS - 1:
+                messagebox.showwarning("Game Over", f"The word was {self.game.target_word}")
+                self.game_over = True
+            else:
+                self.current_row += 1
+                self.current_col = 0
+                self.current_guess = []
+    
+    def update_display(self, result):
+        for i, (status, letter) in enumerate(result):
+            color = {
+                'correct': self.CORRECT,
+                'present': self.PRESENT,
+                'absent': self.ABSENT
+            }[status]
+
+            self.boxes[self.current_row][i].config(bg=color)
+
+            current_btn_color = self.key_buttons[letter].cget("bg")
+            if current_btn_color != self.CORRECT:
+                if status == 'correct' or (status == 'present' and current_btn_color != self.PRESENT):
+                    self.key_buttons[letter].config(bg=color)
+                elif status == 'absent' and current_btn_color not in (self.CORRECT, self.PRESENT):
+                    self.key_buttons[letter].config(bg=color)
+
 
     def backspace(self, event):
         if self.current_col > 0:
@@ -113,17 +202,21 @@ class Wordle:
             self.current_guess.pop()
             self.boxes[self.current_row][self.current_col].config(text="")
     
-    def simulate_feedback(self):
-        import random
-        colors = [self.CORRECT, self.PRESENT, self.ABSENT]
-        for i in range(self.WORD_LENGTH):
-            color = random.choice(colors)
-            self.boxes[self.current_row][i].config(bg=color)
-            letter = self.current_guess[i]
-            if letter in self.key_buttons:
-                self.key_buttons[letter].config(bg=color)
+    def new_game(self):
+        self.game = WordleGame()
+        self.current_row = 0
+        self.current_col = 0
+        self.current_guess = []
+        self.game_over = False
+
+        for row in self.boxes:
+            for box in row:
+                box.config(text="", bg=self.DEFAULT)
+        
+        for letter, btn in self.key_buttons.items():
+            btn.config(bg="#818384")
         
 if __name__ == "__main__":
     root = tk.Tk()
-    app = Wordle(root)
+    app = WordleUI(root)
     root.mainloop()
