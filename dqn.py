@@ -5,6 +5,9 @@ import numpy as np
 from collections import deque
 import random
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
 class WordleState:
     def __init__(self, board_size = (6, 5)):
         self.board = np.zeros((board_size[0], board_size[1], 26))
@@ -90,12 +93,15 @@ class WorldeDQNAgent:
         self.epsilon_decay = 0.995
         self.target_update = 10
 
+        self.policy_net = self.policy_net.to(device)
+        self.target_net = self.target_net.to(device)
+
     def select_action(self, state, valid_words):
         if random.random() < self.epsilon:
             return random.choice(valid_words)
         
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).unsqueeze(0)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
             q_values = self.policy_net(state_tensor)
 
             valid_indices = [i for i, word in enumerate(valid_words)]
@@ -111,11 +117,11 @@ class WorldeDQNAgent:
         transitions = self.memory.sample(batch_size)
         batch = list(zip(*transitions))
 
-        state_batch = torch.FloatTensor(batch[0])
-        action_batch = torch.LongTensor(batch[1])
-        reward_batch = torch.FloatTensor(batch[2])
-        next_state_batch = torch.FloatTensor(batch[3])
-        done_batch = torch.FloatTensor(batch[4])
+        state_batch = torch.FloatTensor(batch[0]).to(device)
+        action_batch = torch.LongTensor(batch[1]).to(device)
+        reward_batch = torch.FloatTensor(batch[2]).to(device)
+        next_state_batch = torch.FloatTensor(batch[3]).to(device)
+        done_batch = torch.FloatTensor(batch[4]).to(device)
 
         current_q_values = self.policy_net(state_batch).gather(1, action_batch.unsqueeze(1))
 

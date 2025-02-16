@@ -22,7 +22,7 @@ class WordleEnvironment:
                 'invalid_guess': -5,       #Word not in dictionary
                 'repeated_word': -3,       #Already Guessed
                 'game_over': -50,          #All Attempts Used
-                'game_win': 100                 #Correct Guess
+                'game_win': 100            #Correct Guess
             }
 
             self.previous_guesses = set()
